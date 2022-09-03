@@ -49,8 +49,9 @@ class Spider:
                     f.write(page_response.text)
                 # todo 比对爬取到的实际页面数和专利数是否符合预期
                 # todo 这里我为了测试，把获取内容和解析页面 link 一起做掉了，应该拆开
-                # 先把所有的有效的 page_response.text 存起来，文件夹结构弄好
-                # 然后再一个个去读取文件夹，解析出 link 或者说公开号，再存到数据库里
+                # 然后再一个个去读取文件夹，解析出 link 或者说公开号
+                # todo 把 (date、code、公开号) 三元组 存到数据库里，并且加两个字段，供以后的获取详细内容用
+                #  一个字段是否爬取详细内容并解析内上传到数据库成功，一个字段是该公开号一共被尝试爬过多少次
                 print(self.parse_page_links(page_response.text, page_num, code, date))
 
     def get_pages_meta(self, url_first, code, date, cookie):
@@ -94,8 +95,10 @@ class Spider:
                 return page_num, patent_num
 
         # todo 在特定文件或数据库中记录错误结果，这里只是记录了 html 文件用来调试
-        # 实际应该记录 date, code 等信息，用来重爬
-        logging.error("专利页面请求出现错误 %s %s %s" % (date, code, url_first))
+        # 实际还应该记录 date, code，用来重爬，建议放数据库里
+        # 然后 status_manger 加一个从数据库读取 date, code 列表的方法
+        # 不断地去爬这个列表，成功后标记一下
+        logging.error("专利页面请求或请求出现错误 %s %s %s" % (date, code, url_first))
         os.makedirs("./err/%s/%s" % (date, code), exist_ok=True)
         with open("./err/%s/%s/error.html" % (date, code), "w", encoding="utf-8") as f:
             f.write(res.text)
