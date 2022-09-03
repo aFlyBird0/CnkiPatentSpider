@@ -21,7 +21,7 @@ class Spider:
         self.sleep_time_max = sleep_time_max    # 最长睡眠时间，单位秒
 
     def crawl_all(self, sm: StatusManager):
-        for date, code in sm.list_date_and_codes():
+        for date, code in sm.next_date_and_code():
             self.crawl_one(date, code)
 
     def crawl_one(self, date, code):
@@ -140,6 +140,9 @@ class Spider:
             public_codes.append(patent_code)
         return public_codes
 
-    # 在一个时间区间内随机睡眠一段时间
     def random_sleep(self):
+        """
+        在一个时间区间内随机睡眠一段时间
+        :return:
+        """
         time.sleep(random.randint(int(self.sleep_time_min * 1000), int(self.sleep_time_max * 1000)) / 1000.0)

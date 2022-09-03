@@ -2,7 +2,7 @@
 data/
 
 # 记录当前爬虫进度
-now.txt
+status.txt
 
 .idea/
 
