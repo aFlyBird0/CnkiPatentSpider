@@ -17,9 +17,9 @@ class Spider:
     def __init__(self, sleep_time_min=0.1, sleep_time_max=1, max_retry=5):
         self.base_url = 'https://kns.cnki.net/kns/brief/brief.aspx?curpage=%d&RecordsPerPage=50&QueryID=10&ID=&turnpage=1&tpagemode=L&dbPrefix=SCPD&Fields=&DisplayMode=listmode&PageName=ASP.brief_result_aspx&isinEn=0&'
         self.patent_content_pre_url = 'https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=SCPD&dbname=SCPD%s&filename=%s'
-        self.sleep_time_min = sleep_time_min    # 最短睡眠时间，单位秒
-        self.sleep_time_max = sleep_time_max    # 最长睡眠时间，单位秒
-        self.max_retry = max_retry              # 最大重试次数
+        self.sleep_time_min = sleep_time_min  # 最短睡眠时间，单位秒
+        self.sleep_time_max = sleep_time_max  # 最长睡眠时间，单位秒
+        self.max_retry = max_retry  # 最大重试次数
 
     def crawl_all(self, sm: StatusManager):
         for date, code in sm.next_date_and_code():
@@ -44,7 +44,7 @@ class Spider:
             with open("./data/%s/%s/meta.txt" % (date, code), "w", encoding="utf-8") as f:
                 f.write(str(page_num) + "\n")
                 f.write(str(patent_num))
-            for page_response, page_num in self.get_pages(code, date, cookie, page_num):
+            for page_response, page_num in self.get_pages(code, date, page_num):
                 with open("./data/%s/%s/%s.html" % (date, code, page_num), "w", encoding="utf-8") as f:
                     f.write(page_response.text)
                 # todo 比对爬取到的实际页面数和专利数是否符合预期
@@ -65,48 +65,52 @@ class Spider:
         # 先请求一次，获取总页数和总文献数等信息
         res = requests.get(url_first, cookies=cookie)
         # 重试最大次数
+        success = False
         for i in range(self.max_retry):
-            if res.status_code == 200:
-                break
-            else:
+            # 页面获取失败，重爬
+            if res.status_code != 200:
                 self.random_sleep()
                 res = requests.get(url_first, cookies=cookie)
+            else:
+                html = etree.HTML(res.text)
+                pager_title_cells = html.xpath('//div[@class="pagerTitleCell"]/text()')
+                # 页面解析失败，说明页面获取到了，但内容不对重爬
+                if len(pager_title_cells) == 0:
+                    # print(response.text)
+                    # 这里的url一定不是空的，如果是空的话前面已经return了不用担心
+                    # todo 在特定文件或数据库中记录错误结果
+                    # logging.error("解析专利页数和篇数信息错误 %s %s %s %s" % (date, code, url_first, res.text))
+                    continue
+                page = pager_title_cells[0].strip()
+                patent_num = int(re.findall(r'\d+', page.replace(',', ''))[0])  # 文献数
+                page_num = math.ceil(patent_num / 50)  # 算出页数
+                logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
 
-        if res.status_code != 200:
-            # todo 在特定文件或数据库中记录错误结果
-            logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, url_first, res.text))
-            return -1, -1
+                if page_num > 120:
+                    # todo 在特定文件或数据库中记录错误结果
+                    logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
+                    return -1, -1
 
-        html = etree.HTML(res.text)
-        pager_title_cells = html.xpath('//div[@class="pagerTitleCell"]/text()')
-        if len(pager_title_cells) == 0:
-            # print(response.text)
-            # 这里的url一定不是空的，如果是空的话前面已经return了不用担心
-            # todo 在特定文件或数据库中记录错误结果
-            logging.error("解析专利页数和篇数信息错误 %s %s %s %s" % (date, code, url_first, res.text))
-            return -1, -1
-        page = pager_title_cells[0].strip()
-        patent_num = int(re.findall(r'\d+', page.replace(',', ''))[0])  # 文献数
-        page_num = math.ceil(patent_num / 50)  # 算出页数
-        logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
-        if page_num > 120:
-            # todo 在特定文件或数据库中记录错误结果
-            logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
-            return -1, -1
+                return page_num, patent_num
 
-        return page_num, patent_num
+        # todo 在特定文件或数据库中记录错误结果，这里只是记录了 html 文件用来调试
+        # 实际应该记录 date, code 等信息，用来重爬
+        logging.error("专利页面请求出现错误 %s %s %s" % (date, code, url_first))
+        os.makedirs("./err/%s/%s" % (date, code), exist_ok=True)
+        with open("./err/%s/%s/error.html" % (date, code), "w", encoding="utf-8") as f:
+            f.write(res.text)
+        return -1, -1
 
-    def get_pages(self, code, date, cookies, page_num):
+    def get_pages(self, code, date, page_num):
         """
         获取所有专利的搜索结果页面，并返回一个生成器
         :param code:
         :param date:
-        :param cookies:
         :param page_num:
         :return:
         """
         # 使用上次请求的cookie，否则无法翻页成功
-        cookies_now = cookies
+        cookies_now = CookieUtil.get_cookies_with_search_info(date, code)
         # 获取上次请求的使用的proxy，这次请求用的cookie和proxy都和以前一致
         # proxyString = response.meta['proxy']
 
