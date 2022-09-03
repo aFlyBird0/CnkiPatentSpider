@@ -14,11 +14,12 @@ from status_manager import StatusManager
 
 
 class Spider:
-    def __init__(self, sleep_time_min=0.1, sleep_time_max=1):
+    def __init__(self, sleep_time_min=0.1, sleep_time_max=1, max_retry=5):
         self.base_url = 'https://kns.cnki.net/kns/brief/brief.aspx?curpage=%d&RecordsPerPage=50&QueryID=10&ID=&turnpage=1&tpagemode=L&dbPrefix=SCPD&Fields=&DisplayMode=listmode&PageName=ASP.brief_result_aspx&isinEn=0&'
         self.patent_content_pre_url = 'https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=SCPD&dbname=SCPD%s&filename=%s'
         self.sleep_time_min = sleep_time_min    # 最短睡眠时间，单位秒
         self.sleep_time_max = sleep_time_max    # 最长睡眠时间，单位秒
+        self.max_retry = max_retry              # 最大重试次数
 
     def crawl_all(self, sm: StatusManager):
         for date, code in sm.next_date_and_code():
@@ -46,10 +47,11 @@ class Spider:
             for page_response, page_num in self.get_pages(code, date, cookie, page_num):
                 with open("./data/%s/%s/%s.html" % (date, code, page_num), "w", encoding="utf-8") as f:
                     f.write(page_response.text)
+                # todo 比对爬取到的实际页面数和专利数是否符合预期
                 # todo 这里我为了测试，把获取内容和解析页面 link 一起做掉了，应该拆开
                 # 先把所有的有效的 page_response.text 存起来，文件夹结构弄好
                 # 然后再一个个去读取文件夹，解析出 link 或者说公开号，再存到数据库里
-                print(self.parse_page_links(page_response, page_num, code, date))
+                print(self.parse_page_links(page_response.text, page_num, code, date))
 
     def get_pages_meta(self, url_first, code, date, cookie):
         """
@@ -62,8 +64,16 @@ class Spider:
         """
         # 先请求一次，获取总页数和总文献数等信息
         res = requests.get(url_first, cookies=cookie)
+        # 重试最大次数
+        for i in range(self.max_retry):
+            if res.status_code == 200:
+                break
+            else:
+                self.random_sleep()
+                res = requests.get(url_first, cookies=cookie)
+
         if res.status_code != 200:
-            # todo 重试，达到最大重试次数后，在特定文件或数据库中记录错误结果
+            # todo 在特定文件或数据库中记录错误结果
             logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, url_first, res.text))
             return -1, -1
 
@@ -72,15 +82,15 @@ class Spider:
         if len(pager_title_cells) == 0:
             # print(response.text)
             # 这里的url一定不是空的，如果是空的话前面已经return了不用担心
-            # todo 重试，达到最大重试次数后，在特定文件或数据库中记录错误结果
-            # logging.error("解析专利页数和篇数信息错误 %s %s %s %s" % (date, code, url_first, res.text))
+            # todo 在特定文件或数据库中记录错误结果
+            logging.error("解析专利页数和篇数信息错误 %s %s %s %s" % (date, code, url_first, res.text))
             return -1, -1
         page = pager_title_cells[0].strip()
         patent_num = int(re.findall(r'\d+', page.replace(',', ''))[0])  # 文献数
         page_num = math.ceil(patent_num / 50)  # 算出页数
         logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
         if page_num > 120:
-            # todo 重试，达到最大重试次数后，在特定文件或数据库中记录错误结果
+            # todo 在特定文件或数据库中记录错误结果
             logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
             return -1, -1
 
@@ -108,26 +118,29 @@ class Spider:
             url = self.base_url % i
 
             response = requests.get(url, cookies=cookies_now)
-            # todo 这里要改一下：多次重试，成功后就 yield, 否则要记录一下错误
+            for j in range(self.max_retry):
+                if response.status_code == 200:
+                    break
+                else:
+                    self.random_sleep()
+                    response = requests.get(url, cookies=cookies_now)
             if response.status_code != 200:
+                # todo 在特定文件或数据库中记录错误结果
                 logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, url, response.text))
                 continue
             # 迭代返回页面内容和页面编号
             yield response, i
 
-    def parse_page_links(self, response: requests.models.Response, page_num, code, date):
+    def parse_page_links(self, response_text, page_num, code, date):
         """
         解析专利搜索结果的某一页，获取该页的所有专利的链接
-        :param response:
+        :param response_text:
         :param page_num:
         :param code:
         :param date:
         :return:
         """
-        if response.status_code != 200:
-            logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, response.url, response.text))
-            return
-        links_html = etree.HTML(response.text).xpath('//a[@class="fz14"]/@href')  # 返回链接地址href列表
+        links_html = etree.HTML(response_text).xpath('//a[@class="fz14"]/@href')  # 返回链接地址href列表
         if len(links_html) == 0:
             return
         logging.info("日期：%s,学科分类：%s，第%d页有%d个专利" % (date, code, page_num + 1, len(links_html)))

@@ -61,7 +61,7 @@ class StatusManager:
             # 去除空行和空白符
             lines = [line.strip() for line in lines if line.strip()]
             if len(lines) == 0:
-                logging.info('状态文件为空，将从第一个日期和学科分类号开始爬')
+                logging.info('状态文件内容为空，将从第一个日期和学科分类号开始爬')
                 # 返回 -1，这样爬虫就从第一个日期和学科分类号开始爬
                 return -1
             else:
