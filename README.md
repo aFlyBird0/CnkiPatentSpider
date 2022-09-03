@@ -24,3 +24,8 @@
     * 学科分类号
     * 专利公开号
   * 目前是存到数据库里
+
+## 使用
+把 settings_example.py 改名为 settings.py，修改相应配置。
+
+`main.py` 是程序入口。
