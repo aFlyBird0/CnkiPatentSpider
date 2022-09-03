@@ -109,3 +109,11 @@ def list_dates(start_date, end_date):
     end_date = datetime.strptime(end_date, '%Y-%m-%d')
     for dt in rrule.rrule(rrule.DAILY, dtstart=start_date, until=end_date):
         yield dt.strftime('%Y-%m-%d')
+
+
+if __name__ == '__main__':
+    print('测试 StatusManager')
+    sm = StatusManager('./code/test.txt', '2021-01-01', '2021-01-06')
+    print(sm.list_codes())
+    for item in sm.next_date_and_code():
+        print(item)

@@ -1,12 +1,12 @@
 # html 源文件
 data/
-
 # 记录当前爬虫进度
 status.txt
-
 # 错误日志
 err/
-
+# 敏感配置文件
+settings.py
+# IDE
 .idea/
 
 ### Python template
