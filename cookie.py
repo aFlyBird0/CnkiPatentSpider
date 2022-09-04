@@ -1,10 +1,11 @@
 import time
 import requests
+import settings
 
 
 class CookieUtil:
     @classmethod
-    def get_cookies_with_search_info(cls, date, code):
+    def get_session_with_search_info(cls, date, code):
         '''
         返回带有查询信息的cookies
         根据日期，分类代码获取cookies,翻页时必须要有cookie
@@ -44,6 +45,9 @@ class CookieUtil:
             "his": '0',
             '__': times
         }
-        session_response = requests.get(search_url, headers=headers, params=params)
-        cookies = requests.utils.dict_from_cookiejar(session_response.cookies)
-        return cookies
+        session = requests.session()
+        session.headers = headers
+        session.proxies = settings.proxies
+        session.get(search_url, params=params)
+
+        return session
