@@ -14,13 +14,14 @@ from status_manager import StatusManager
 
 
 class Spider:
-    def __init__(self, sleep_time_min=1, sleep_time_max=2, max_retry=5):
+    def __init__(self, sleep_time_min=1, sleep_time_max=2, max_retry=5, proxy_bool = True):
         self.base_url = 'https://kns.cnki.net/kns/brief/brief.aspx?curpage=%d&RecordsPerPage=50&QueryID=10&ID=&turnpage=1&tpagemode=L&dbPrefix=SCPD&Fields=&DisplayMode=listmode&PageName=ASP.brief_result_aspx&isinEn=0&'
         self.patent_content_pre_url = 'https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=SCPD&dbname=SCPD%s&filename=%s'
         self.sleep_time_min = sleep_time_min  # 最短睡眠时间，单位秒
         self.sleep_time_max = sleep_time_max  # 最长睡眠时间，单位秒
         self.max_retry = max_retry  # 最大重试次数
         self.header_page = settings.headers_page
+        self.proxy_bool = proxy_bool
 
 
     def crawl_all(self, sm: StatusManager):
@@ -35,14 +36,12 @@ class Spider:
         # url_first = self.base_url % 1 尽量模拟真实浏览器操作
         url_first = 'https://kns.cnki.net/kns/brief/brief.aspx?pagename=ASP.brief_result_aspx&isinEn=0&dbPrefix=SCPD&dbCatalog=%e4%b8%ad%e5%9b%bd%e4%b8%93%e5%88%a9%e6%95%b0%e6%8d%ae%e5%ba%93&ConfigFile=SCPD.xml&research=off&t='+str(int(round(time.time() * 1000)))+'&keyValue=&S=1&sorttype='
         # 获取一个带有查询信息的cookie
-        # done 为这个 cookie 获取函数加个代理
-        # done 使用代理后，长时间运行会出现requests出错,需要检测异常,在CookieUtil中添加了Retry
-        session = CookieUtil.get_session_with_search_info(date, code)
+        session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
         self.random_sleep()
         # session 保留用于每页查找
         page_num, patent_num, session = self.get_pages_meta(url_first, code, date, session)
         if page_num > 0 and patent_num > 0:
-            print("开始爬取 %s %s" % (date, code))
+            logging.info("开始爬取 %s %s" % (date, code))
             os.makedirs("./data/%s/%s" % (date, code), exist_ok=True)
             with open("./data/%s/%s/meta.txt" % (date, code), "w", encoding="utf-8") as f:
                 f.write(str(page_num) + "\n")
@@ -51,17 +50,13 @@ class Spider:
             for page_response, page_num in self.get_pages(code, date, page_num, session):
                 with open("./data/%s/%s/%s.html" % (date, code, page_num), "w", encoding="utf-8") as f:
                     f.write(page_response.text)
-                # done 比对爬取到的实际页面数和专利数是否符合预期
                 # todo 这里我为了测试，把获取内容和解析页面 link 一起做掉了，应该拆开
                 # 然后再一个个去读取文件夹，解析出 link 或者说公开号
                 # todo 把 (date、code、公开号) 三元组 存到数据库里，并且加两个字段，供以后的获取详细内容用
                 #  一个字段是否爬取详细内容并解析内上传到数据库成功，一个字段是该公开号一共被尝试爬过多少次
-                public_codes = self.parse_page_links(page_response.text, page_num, code, date)
-                # with open("./data/public_codes.txt", "a", encoding="utf-8") as f:
-                for item in public_codes:
-                    print(item)
+                for item in self.parse_page_links(page_response.text, page_num, code, date):
+                    logging.debug(item)
                     crawl_public_codes.append(item)
-
             if len(crawl_public_codes) == patent_num:
                 logging.info("专利号数量比对成功，开始存储")
                 with open("./data/public_codes.txt", 'a', encoding='utf-8') as f:
@@ -95,7 +90,7 @@ class Spider:
                 logging.error("爬取到空白页 %s %s，第%d次尝试" % (date, code, i))
                 # 空白页的原因很有可能是因为太频繁，这里单独长时间等待
                 time.sleep(3)
-                session = CookieUtil.get_session_with_search_info(date, code)
+                session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
                 res = session.get(url_first)
             else:
                 html = etree.HTML(res.text)
@@ -104,7 +99,6 @@ class Spider:
                 if len(pager_title_cells) == 0:
                     # print(response.text)
                     # 这里的url一定不是空的，如果是空的话前面已经return了不用担心
-                    # done 在特定文件或数据库中记录错误结果
                     # 虽然已经处理了空白页，但是仍然保留。
                     logging.error("解析专利页数和篇数信息错误 %s %s %s %s" % (date, code, url_first, res.text))
                     continue
@@ -114,7 +108,6 @@ class Spider:
                 logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
 
                 if page_num > 120:
-                    # done 在特定文件或数据库中记录错误结果
                     self.err_record(date, code)
                     logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
                     return -1, -1
@@ -122,7 +115,6 @@ class Spider:
                 # 返回重新请求或者原来的seesion
                 return page_num, patent_num, session
 
-        # done 在特定文件或数据库中记录错误结果，这里只是记录了 html 文件用来调试
         # 实际还应该记录 date, code，用来重爬，建议放数据库里
         # 然后 status_manger 加一个从数据库读取 date, code 列表的方法
         # 不断地去爬这个列表，成功后标记一下
@@ -150,7 +142,7 @@ class Spider:
             self.random_sleep()
             # 超过15页换session
             if i % 13 == 0:
-                session = CookieUtil.get_session_with_search_info(date, code)
+                session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
             url = self.base_url % i
             # response = requests.get(url, cookies=cookies_now)
             response = session.get(url)
@@ -158,12 +150,11 @@ class Spider:
                 if response.status_code == 200 and int(response.headers['content-length']) > 3500:
                     break
                 else:
-                    logging.error("翻页错误 %s %s, 第 %d 次尝试" % (date, code, j))
+                    logging.info("翻页错误 %s %s, 第 %d 次尝试" % (date, code, j))
                     self.random_sleep()
-                    session = CookieUtil.get_session_with_search_info(date, code)
+                    session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
                     response = session.get(url)
             if response.status_code != 200:
-                # done 在特定文件或数据库中记录错误结果
                 # 里面的错误结果可能重复
                 self.err_record(date, code)
                 logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, url, response.text))

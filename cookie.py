@@ -7,14 +7,14 @@ import settings
 
 class CookieUtil:
     @classmethod
-    def get_session_with_search_info(cls, date, code):
+    def get_session_with_search_info(cls, date, code, proxy_bool):
         '''
-        返回带有查询信息的cookies
+        返回带有查询信息的session
         根据日期，分类代码获取cookies,翻页时必须要有cookie
         :param date:
         :param code:
-        :param proxy:
-        :return:
+        :param proxy_bool:
+        :return: session
         '''
         search_url = 'http://kns.cnki.net/kns/request/SearchHandler.ashx'
         times = time.strftime('%a %b %d %Y %H:%M:%S') + ' GMT+0800 (中国标准时间)'
@@ -49,9 +49,10 @@ class CookieUtil:
         }
         session = requests.session()
         # 使用 requests 模块中的 Retry, 处理请求异常
-        session.mount('https://', HTTPAdapter(max_retries=Retry(total=5, method_whitelist=(['GET', 'POST']))))
+        session.mount('https://', HTTPAdapter(max_retries=Retry(total=settings.MAX_RETRY, method_whitelist=(['GET', 'POST']))))
         session.headers = headers
-        session.proxies = settings.proxies
+        if proxy_bool:
+            session.proxies = settings.proxies
         session.get(search_url, params=params)
 
         return session
