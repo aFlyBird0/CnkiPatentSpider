@@ -7,14 +7,13 @@ import time
 
 from lxml import etree
 
-
 import settings
 from cookie import CookieUtil
 from status_manager import StatusManager
 
 
 class Spider:
-    def __init__(self, sleep_time_min=1, sleep_time_max=2, max_retry=5, proxy_bool = True):
+    def __init__(self, sleep_time_min=1, sleep_time_max=2, max_retry=5, proxy_bool=True):
         self.base_url = 'https://kns.cnki.net/kns/brief/brief.aspx?curpage=%d&RecordsPerPage=50&QueryID=10&ID=&turnpage=1&tpagemode=L&dbPrefix=SCPD&Fields=&DisplayMode=listmode&PageName=ASP.brief_result_aspx&isinEn=0&'
         self.patent_content_pre_url = 'https://kns.cnki.net/kcms/detail/detail.aspx?dbcode=SCPD&dbname=SCPD%s&filename=%s'
         self.sleep_time_min = sleep_time_min  # 最短睡眠时间，单位秒
@@ -22,7 +21,6 @@ class Spider:
         self.max_retry = max_retry  # 最大重试次数
         self.header_page = settings.headers_page
         self.proxy_bool = proxy_bool
-
 
     def crawl_all(self, sm: StatusManager):
         for date, code in sm.next_date_and_code():
@@ -34,9 +32,11 @@ class Spider:
         :return:
         """
         # url_first = self.base_url % 1 尽量模拟真实浏览器操作
-        url_first = 'https://kns.cnki.net/kns/brief/brief.aspx?pagename=ASP.brief_result_aspx&isinEn=0&dbPrefix=SCPD&dbCatalog=%e4%b8%ad%e5%9b%bd%e4%b8%93%e5%88%a9%e6%95%b0%e6%8d%ae%e5%ba%93&ConfigFile=SCPD.xml&research=off&t='+str(int(round(time.time() * 1000)))+'&keyValue=&S=1&sorttype='
+        url_first = 'https://kns.cnki.net/kns/brief/brief.aspx?pagename=ASP.brief_result_aspx&isinEn=0&dbPrefix=SCPD&dbCatalog=%e4%b8%ad%e5%9b%bd%e4%b8%93%e5%88%a9%e6%95%b0%e6%8d%ae%e5%ba%93&ConfigFile=SCPD.xml&research=off&t=' + str(
+            int(round(time.time() * 1000))) + '&keyValue=&S=1&sorttype='
         # 获取一个带有查询信息的cookie
         session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
+        logging.info(session.proxies)
         self.random_sleep()
         # session 保留用于每页查找
         page_num, patent_num, session = self.get_pages_meta(url_first, code, date, session)
@@ -61,12 +61,11 @@ class Spider:
                 logging.info("专利号数量比对成功，开始存储")
                 with open("./data/public_codes.txt", 'a', encoding='utf-8') as f:
                     for item in crawl_public_codes:
-                        f.writelines(date+','+code+','+item)
+                        f.writelines(date + ',' + code + ',' + item)
                         f.write('\r\n')
             else:
                 logging.error("专利号数量比对失败, %s %s" % (date, code))
-                self.err_record(date,code)
-
+                self.err_record(date, code)
 
     def get_pages_meta(self, url_first, code, date, session):
         """
@@ -111,7 +110,7 @@ class Spider:
                     self.err_record(date, code)
                     logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
                     return -1, -1
-                self.header_page['Referer']=url_first
+                self.header_page['Referer'] = url_first
                 # 返回重新请求或者原来的seesion
                 return page_num, patent_num, session
 
@@ -123,7 +122,7 @@ class Spider:
         # with open("./err/%s/%s/error.html" % (date, code), "w", encoding="utf-8") as f:
         #     f.write(res.text)
         self.err_record(date, code)
-        return -1, -1
+        return -1, -1, session
 
     def get_pages(self, code, date, page_num, session):
         """
@@ -137,7 +136,7 @@ class Spider:
         # cookies_now = CookieUtil.get_cookies_with_search_info(date, code)
         # 获取上次请求的使用的proxy，这次请求用的cookie和proxy都和以前一致
         # proxyString = response.meta['proxy']
-        session.headers =self.header_page
+        session.headers = self.header_page
         for i in range(1, page_num + 1):
             self.random_sleep()
             # 超过15页换session
@@ -163,6 +162,7 @@ class Spider:
             self.header_page['Referer'] = url
             yield response, i
         session.close()
+
     def parse_page_links(self, response_text, page_num, code, date):
         """
         解析专利搜索结果的某一页，获取该页的所有专利的链接
@@ -176,7 +176,6 @@ class Spider:
         if len(links_html) == 0:
             return
         logging.info("日期：%s,学科分类：%s，第%d页有%d个专利" % (date, code, page_num, len(links_html)))
-
 
         for j in range(len(links_html)):
             patent_code = re.search(r'filename=(.*)$', links_html[j]).group(1)
