@@ -5,7 +5,7 @@ from status_manager import StatusManager
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
-    sm = StatusManager('./code/test.txt', '2021-01-01', '2021-12-31')
+    sm = StatusManager('./code/test.txt', '2021-03-30', '2021-12-31')
     print(sm.list_codes())
     # for item in sm.list_date_and_codes():
     #     print(item)
