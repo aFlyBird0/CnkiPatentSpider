@@ -71,7 +71,7 @@ class StatusManager:
                 # 如果找不到，就报错
                 print('index', index)
                 if index == -1:
-                    logging.error(self.status_path + '中的状态' + str(self.current_status) + '不存在')
+                    logging.error(self.status_path + '中的状态' + last_date + ', ' + last_code + '不存在')
                 return index
 
     def update_status(self, date, code):
