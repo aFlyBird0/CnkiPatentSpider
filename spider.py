@@ -35,7 +35,8 @@ class Spider:
         # url_first = self.base_url % 1 尽量模拟真实浏览器操作
         url_first = 'https://kns.cnki.net/kns/brief/brief.aspx?pagename=ASP.brief_result_aspx&isinEn=0&dbPrefix=SCPD&dbCatalog=%e4%b8%ad%e5%9b%bd%e4%b8%93%e5%88%a9%e6%95%b0%e6%8d%ae%e5%ba%93&ConfigFile=SCPD.xml&research=off&t='+str(int(round(time.time() * 1000)))+'&keyValue=&S=1&sorttype='
         # 获取一个带有查询信息的cookie
-        # todo 为这个 cookie 获取函数加个代理
+        # done 为这个 cookie 获取函数加个代理
+        # done 使用代理后，长时间运行会出现requests出错,需要检测异常,在CookieUtil中添加了Retry
         session = CookieUtil.get_session_with_search_info(date, code)
         self.random_sleep()
         # session 保留用于每页查找

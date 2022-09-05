@@ -1,5 +1,7 @@
 import time
 import requests
+from requests.adapters import HTTPAdapter, Retry
+
 import settings
 
 
@@ -46,6 +48,8 @@ class CookieUtil:
             '__': times
         }
         session = requests.session()
+        # 使用 requests 模块中的 Retry, 处理请求异常
+        session.mount('https://', HTTPAdapter(max_retries=Retry(total=5, method_whitelist=(['GET', 'POST']))))
         session.headers = headers
         session.proxies = settings.proxies
         session.get(search_url, params=params)
