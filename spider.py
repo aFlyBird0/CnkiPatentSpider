@@ -9,7 +9,8 @@ from lxml import etree
 
 import settings
 from cookie import CookieUtil
-from status_manager import StatusManager
+from status_manager import StatusManager, lower_level_date_and_code
+
 
 
 class Spider:
@@ -24,7 +25,8 @@ class Spider:
 
     def crawl_all(self, sm: StatusManager):
         for date, code in sm.next_date_and_code():
-            self.crawl_one(date, code)
+            #self.crawl_one(date, code)
+            self.crawl_tree(date, list(code), sm.codes_tree)
 
     def crawl_one(self, date, code):
         """
@@ -36,10 +38,11 @@ class Spider:
             int(round(time.time() * 1000))) + '&keyValue=&S=1&sorttype='
         # 获取一个带有查询信息的cookie
         session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
-        logging.info(session.proxies)
         self.random_sleep()
         # session 保留用于每页查找
         page_num, patent_num, session = self.get_pages_meta(url_first, code, date, session)
+        if page_num > 119:
+            return False
         if page_num > 0 and patent_num > 0:
             logging.info("开始爬取 %s %s" % (date, code))
             os.makedirs("./data/%s/%s" % (date, code), exist_ok=True)
@@ -66,6 +69,24 @@ class Spider:
             else:
                 logging.error("专利号数量比对失败, %s %s" % (date, code))
                 self.err_record(date, code)
+        return True
+
+    # 爬树
+    def crawl_tree(self,date, key_codes, tree):
+        logging.info('开始爬code-tree %s' %(date))
+        for key_code in key_codes:
+            if tree == {}:
+                if self.crawl_one(date,key_code):
+                    logging.error("%s 的 %s 页数超过120页，不予爬取" % (key_code, date))
+                    self.err_record(date,key_code)
+                else:
+                    logging.info(key_code+ ' get')
+            else:
+                if self.crawl_one(date, key_code):
+                    for keys_child, tree_child in lower_level_date_and_code(tree[key_code]):
+                        self.crawl_tree(date, keys_child, tree_child)
+                else:
+                    logging.info(key_code+ ' get')
 
     def get_pages_meta(self, url_first, code, date, session):
         """
@@ -105,11 +126,6 @@ class Spider:
                 patent_num = int(re.findall(r'\d+', page.replace(',', ''))[0])  # 文献数
                 page_num = math.ceil(patent_num / 50)  # 算出页数
                 logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
-
-                if page_num > 120:
-                    self.err_record(date, code)
-                    logging.error("%s 的 %s 页数超过120页，不予爬取" % (code, date))
-                    return -1, -1
                 self.header_page['Referer'] = url_first
                 # 返回重新请求或者原来的seesion
                 return page_num, patent_num, session
@@ -193,5 +209,5 @@ class Spider:
     def err_record(self, date, code):
         os.makedirs("./err/", exist_ok=True)
         with open("./err/code_err.txt", "a+", encoding="utf-8") as f:
-            f.writelines(date + ',' + code)
+            f.writelines(date + ',' + code[0])
             f.write('\r\n')

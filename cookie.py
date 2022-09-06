@@ -4,7 +4,6 @@ from requests.adapters import HTTPAdapter, Retry
 
 import settings
 
-
 class CookieUtil:
     @classmethod
     def get_session_with_search_info(cls, date, code, proxy_bool):
@@ -49,10 +48,11 @@ class CookieUtil:
         }
         session = requests.session()
         # 使用 requests 模块中的 Retry, 处理请求异常
-        session.mount('https://', HTTPAdapter(max_retries=Retry(total=settings.MAX_RETRY, method_whitelist=(['GET', 'POST']))))
+        session.mount('https://', HTTPAdapter(max_retries=Retry(total=settings.MAX_RETRY, allowed_methods=(['GET', 'POST']))))
         session.headers = headers
+        session.trust_env = False
         if proxy_bool:
-            session.proxies = settings.proxies
+            session.proxies.update(settings.proxies)
         session.get(search_url, params=params)
 
         return session
