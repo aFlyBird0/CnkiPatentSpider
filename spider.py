@@ -82,7 +82,7 @@ class Spider:
                 else:
                     logging.info(key_code+ ' get')
             else:
-                if self.crawl_one(date, key_code):
+                if not self.crawl_one(date, key_code):
                     for keys_child, tree_child in lower_level_date_and_code(tree[key_code]):
                         self.crawl_tree(date, keys_child, tree_child)
                 else:
