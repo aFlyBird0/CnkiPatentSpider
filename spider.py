@@ -76,7 +76,7 @@ class Spider:
         logging.info('开始爬code-tree %s' %(date))
         for key_code in key_codes:
             if tree == {}:
-                if self.crawl_one(date,key_code):
+                if not self.crawl_one(date,key_code):
                     logging.error("%s 的 %s 页数超过120页，不予爬取" % (key_code, date))
                     self.err_record(date,key_code)
                 else:
@@ -100,18 +100,18 @@ class Spider:
         # 先请求一次，获取总页数和总文献数等信息
         self.header_page["Referer"] = "https://kns.cnki.net/kns/brief/result.aspx?dbprefix=SCPD"
         session.headers = self.header_page
-        res = session.get(url_first)
+        res = session.get(url_first, timeout=(3, 1))
         # res = requests.get(url_first, cookies=cookie)
         # 重试最大次数
         success = False
         for i in range(self.max_retry):
             # 页面获取失败，重爬，基本上所有的空白页大小都小于 3500 这个值
             if res.status_code != 200 or int(res.headers['content-length']) < 3500:
-                logging.error("爬取到空白页 %s %s，第%d次尝试" % (date, code, i))
+                logging.info("爬取到空白页 %s %s，第%d次尝试" % (date, code, i))
                 # 空白页的原因很有可能是因为太频繁，这里单独长时间等待
                 time.sleep(3)
                 session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
-                res = session.get(url_first)
+                res = session.get(url_first, timeout=(3,1))
             else:
                 html = etree.HTML(res.text)
                 pager_title_cells = html.xpath('//div[@class="pagerTitleCell"]/text()')
@@ -127,7 +127,7 @@ class Spider:
                 page_num = math.ceil(patent_num / 50)  # 算出页数
                 logging.info("%s %s 共有：%d篇文献, %d页" % (code, date, patent_num, page_num))
                 self.header_page['Referer'] = url_first
-                # 返回重新请求或者原来的seesion
+                # 返回重新请求或者原来的session
                 return page_num, patent_num, session
 
         # 实际还应该记录 date, code，用来重爬，建议放数据库里
@@ -160,7 +160,7 @@ class Spider:
                 session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
             url = self.base_url % i
             # response = requests.get(url, cookies=cookies_now)
-            response = session.get(url)
+            response = session.get(url, timeout=(3, 1))
             for j in range(self.max_retry):
                 if response.status_code == 200 and int(response.headers['content-length']) > 3500:
                     break
@@ -168,7 +168,7 @@ class Spider:
                     logging.info("翻页错误 %s %s, 第 %d 次尝试" % (date, code, j))
                     self.random_sleep()
                     session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
-                    response = session.get(url)
+                    response = session.get(url, timeout=(3,1))
             if response.status_code != 200:
                 # 里面的错误结果可能重复
                 self.err_record(date, code)
