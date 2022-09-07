@@ -3,19 +3,21 @@ import os
 
 from dateutil import rrule
 from datetime import datetime
-
+import yaml
 
 class StatusManager:
-    def __init__(self, code_path, start_date, end_date, status_path='status.txt'):
+    def __init__(self, code_path, start_date, end_date, status_path='status.txt', tree_path='./code/code_tree.yml'):
         self.code_path = code_path
         self.start_date = start_date
         self.end_date = end_date
+        self.tree_path = tree_path
         self.all_code = self.load_codes()
         self.date_and_codes = list(self.list_date_and_codes())
 
         self.status_path = status_path
         # 获取上一次启动爬虫时的状态
         self.last_index = self.get_last_status_index()
+        self.codes_tree = self.load_codes_tree()
 
     def next_date_and_code(self):
         if self.last_index == -1:
@@ -92,6 +94,28 @@ class StatusManager:
         for date in list_dates(self.start_date, self.end_date):
             for code in self.all_code:
                 yield date, code
+
+    def load_codes_tree(self):
+        """
+        从文件中读取代码树
+        :return:
+        """
+        with open(self.tree_path, 'r') as f:
+            ayml = yaml.load(f.read(), Loader=yaml.Loader)
+            return ayml
+
+
+
+def lower_level_date_and_code(left_tree):
+    """
+    返回下层的code 和 tree
+    :return:
+    """
+    for i in left_tree:
+        if type(i) == str:
+            yield [i],{}
+        else:
+            yield list(i.keys()), i.keys().mapping
 
 
 def list_dates(start_date, end_date):
