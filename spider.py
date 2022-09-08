@@ -10,7 +10,7 @@ from lxml import etree
 import settings
 from cookie import CookieUtil
 from status_manager import StatusManager, lower_level_date_and_code
-
+from util import session_get_thro_unknown_errors, err_record
 
 
 class Spider:
@@ -64,11 +64,11 @@ class Spider:
                 logging.info("专利号数量比对成功，开始存储")
                 with open("./data/public_codes.txt", 'a', encoding='utf-8') as f:
                     for item in crawl_public_codes:
-                        f.writelines(date + ',' + code + ',' + item)
-                        f.write('\r\n')
+                        f.write(date + ',' + code + ',' + item)
+                        f.write('\n')
             else:
                 logging.error("专利号数量比对失败, %s %s" % (date, code))
-                self.err_record(date, code)
+                err_record(date, code)
         return True
 
     # 爬树
@@ -78,7 +78,7 @@ class Spider:
             if tree == {}:
                 if not self.crawl_one(date,key_code):
                     logging.error("%s 的 %s 页数超过120页，不予爬取" % (key_code, date))
-                    self.err_record(date,key_code)
+                    err_record(date,key_code)
                 else:
                     logging.info(key_code+ ' get')
             else:
@@ -100,7 +100,7 @@ class Spider:
         # 先请求一次，获取总页数和总文献数等信息
         self.header_page["Referer"] = "https://kns.cnki.net/kns/brief/result.aspx?dbprefix=SCPD"
         session.headers = self.header_page
-        res = session.get(url_first, timeout=(3, 1))
+        res = session_get_thro_unknown_errors(session=session, url=url_first, date=date, code=code)
         # res = requests.get(url_first, cookies=cookie)
         # 重试最大次数
         success = False
@@ -111,7 +111,7 @@ class Spider:
                 # 空白页的原因很有可能是因为太频繁，这里单独长时间等待
                 time.sleep(3)
                 session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
-                res = session.get(url_first, timeout=(3,1))
+                res = session_get_thro_unknown_errors(session=session, url=url_first, date=date,code=code)
             else:
                 html = etree.HTML(res.text)
                 pager_title_cells = html.xpath('//div[@class="pagerTitleCell"]/text()')
@@ -137,7 +137,7 @@ class Spider:
         # os.makedirs("./err/%s/%s" % (date, code), exist_ok=True)
         # with open("./err/%s/%s/error.html" % (date, code), "w", encoding="utf-8") as f:
         #     f.write(res.text)
-        self.err_record(date, code)
+        err_record(date, code)
         return -1, -1, session
 
     def get_pages(self, code, date, page_num, session):
@@ -160,7 +160,7 @@ class Spider:
                 session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
             url = self.base_url % i
             # response = requests.get(url, cookies=cookies_now)
-            response = session.get(url, timeout=(3, 1))
+            response = session_get_thro_unknown_errors(session=session, url=url, date=date, code=code)
             for j in range(self.max_retry):
                 if response.status_code == 200 and int(response.headers['content-length']) > 3500:
                     break
@@ -168,16 +168,17 @@ class Spider:
                     logging.info("翻页错误 %s %s, 第 %d 次尝试" % (date, code, j))
                     self.random_sleep()
                     session = CookieUtil.get_session_with_search_info(date, code, self.proxy_bool)
-                    response = session.get(url, timeout=(3,1))
+                    response = session_get_thro_unknown_errors(session=session, url=url, date=date, code=code)
             if response.status_code != 200:
                 # 里面的错误结果可能重复
-                self.err_record(date, code)
+                err_record(date, code)
                 logging.error("专利页面请求出现错误 %s %s %s %s" % (date, code, url, response.text))
                 continue
             # 迭代返回页面内容和页面编号
             self.header_page['Referer'] = url
             yield response, i
         session.close()
+
 
     def parse_page_links(self, response_text, page_num, code, date):
         """
@@ -206,8 +207,8 @@ class Spider:
         """
         time.sleep(random.randint(int(self.sleep_time_min * 1000), int(self.sleep_time_max * 1000)) / 1000.0)
 
-    def err_record(self, date, code):
-        os.makedirs("./err/", exist_ok=True)
-        with open("./err/code_err.txt", "a+", encoding="utf-8") as f:
-            f.writelines(date + ',' + code[0])
-            f.write('\r\n')
+    # def err_record(self, date, code):
+    #     os.makedirs("./err/", exist_ok=True)
+    #     with open("./err/code_err.txt", "a+", encoding="utf-8") as f:
+    #         f.write(date + ',' + code[0])
+    #         f.write('\n')
