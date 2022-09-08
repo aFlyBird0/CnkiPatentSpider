@@ -30,3 +30,10 @@ def session_get_thro_unknown_errors(session, url, date, code, timeout=(3,3)):
             return res
     err_record(date=date, code=code)
     logging.error("未知请求错误, %s %s" % (date, code))
+
+def read_date():
+    with open('./date.txt', 'r') as f:
+        start_date, end_date = f.readline().split(',')
+        start_date = start_date.strip()
+        end_date = end_date.strip()
+        return start_date, end_date

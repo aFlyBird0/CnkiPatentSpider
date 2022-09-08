@@ -36,4 +36,4 @@ headers_page = {
 
 MAX_RETRY=10
 SLEEP_TIME_MIN=0.5
-PROXY_BOOL=True
+PROXY_BOOL=False
