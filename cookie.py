@@ -1,8 +1,8 @@
 import time
 import requests
 from requests.adapters import HTTPAdapter, Retry
-
 import settings
+from util import sessionn_throw_unknown_errors
 
 class CookieUtil:
     @classmethod
@@ -48,11 +48,15 @@ class CookieUtil:
         }
         session = requests.session()
         # 使用 requests 模块中的 Retry, 处理请求异常
-        session.mount('https://', HTTPAdapter(max_retries=Retry(total=settings.MAX_RETRY, allowed_methods=(['GET', 'POST']))))
+        # 使用 urllib3 的 Retry，因为 requests 的 Retry 无法处理 readout
+        session.mount('https://', HTTPAdapter(
+            max_retries=Retry(total=settings.MAX_RETRY,read=settings.MAX_RETRY, allowed_methods=(['GET', 'POST']), backoff_factor=0.1)))
+        session.mount('http://', HTTPAdapter(
+            max_retries=Retry(total=settings.MAX_RETRY, read=settings.MAX_RETRY, allowed_methods=(['GET', 'POST']), backoff_factor=0.1)))
         session.headers = headers
         session.trust_env = False
         if proxy_bool:
             session.proxies.update(settings.proxies)
-        session.get(search_url, params=params)
+        session = sessionn_throw_unknown_errors(session=session, url=search_url, params=params ,date=date, code=code)
 
         return session

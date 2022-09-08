@@ -11,6 +11,11 @@ kuai_tunnel = 'xxx.xxx.com:xxxx'
 kuai_username = ''
 kuai_password = ''
 
+proxies = {
+    "http": "http://%(user)s:%(pwd)s@%(proxy)s/" % {"user": kuai_username, "pwd": kuai_password, "proxy": kuai_tunnel},
+    "https": "http://%(user)s:%(pwd)s@%(proxy)s/" % {"user": kuai_username, "pwd": kuai_password, "proxy": kuai_tunnel}
+}
+
 headers_page = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
     "Accept-Encoding": "gzip, deflate, br",
@@ -31,4 +36,4 @@ headers_page = {
 
 MAX_RETRY=10
 SLEEP_TIME_MIN=0.5
-PROXY_BOOL=True
+PROXY_BOOL=False
